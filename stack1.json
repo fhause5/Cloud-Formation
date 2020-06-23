@@ -1,0 +1,147 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Mappings" : {
+        "RegionMap" : {
+          "us-east-1" : { 
+            "HVM64" : "ami-0ff8a91507f77f867", "HVMG2" : "ami-0a584ac55a7631c0c" 
+          },
+          "us-west-1" : { 
+            "HVM64" : "ami-0bdb828fd58c52235", "HVMG2" : "ami-066ee5fd4a9ef77f1" 
+          },
+          "eu-west-1" : { 
+            "HVM64" : "ami-047bb4163c506cd98", "HVMG2" : "ami-0a7c483d527806435" 
+          },
+          "ap-southeast-1" : { 
+            "HVM64" : "ami-08569b978cc4dfa10", "HVMG2" : "ami-0be9df32ae9f92309" 
+          },
+          "eu-central-1" : { 
+            "HVM64" : "ami-04e80dcb9504b6979", "HVMG2" : "ami-053cdd503598e4a9d" 
+          }
+        }
+      },
+
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+              {
+                "Parameters": [
+                  "BacketName"
+                ],
+                "Label": {
+                  "default": "S3 backet name"
+                }
+              },
+              {
+                "Parameters": [
+                  "Email"
+                ],
+                "Label": {
+                  "default": "Mail for notification"
+                },
+                "AllowedValues" : ["fhause5@gmail.com", "snaap032@gmail.com", "hhdevopshh@gmail.com"]
+              }
+            ],
+            "ParameterLabels": {
+              "Email": {
+                "default": "E-mail address."
+              },
+              "BacketName": {
+                "default": "S3 backet name"
+              }
+            }
+          }
+        },
+        "Parameters": {
+          "Email": {
+            "Description": "Enter any reachable e-mail address. Credentials to access your app will be sent there",
+            "Type": "String"
+          },
+          "BacketName": {
+            "Description": "S3 backet name",
+            "Type": "String"
+          }
+        },
+
+
+    
+    "Resources": {
+        "ExportAppURLLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "ZipFile": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "import json\n",
+                      "from botocore.vendored import requests\n",
+                      "import cfnresponse\n",
+                      "def handler(event, context):\n",
+                      "    responseValue = event['ResourceProperties']['Value']\n",
+                      "    responseData = {}\n",
+                      "    responseData['Data'] = responseValue\n",
+                      "    userEmail = event['ResourceProperties']['Email']\n",
+                      "    print(userEmail)\n",
+                      "    OrganizationID = \"",
+                      {
+                        "Ref": "BacketName"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+        },
+        
+
+        "EC2I2QYO7": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "ImageId": {
+                    "Fn::FindInMap": [
+                      "RegionMap",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      "HVM64"
+                    ]
+                  },
+                  "InstanceType" : "t2.micro",
+                  "UserData": {
+                      "Fn::Base64": {"Fn::Join": ["",[ 
+                            "#!/bin/bash","\n",
+                            "echo -e $env_rest > /var/www/dash-rest/.env","\n",
+                            "echo '#---GENERATED VALUES BELOW---' >> /var/www/dash-rest/.env","\n",
+                            "echo -e 'AWS_S3_BUCKET=",{"Fn::Join": ["-", ["dash",{"Ref": "BacketName"}]]},"\\n",
+                            "apt-get update"
+                          ]
+                        ]
+                      }
+                  }
+
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "553a6dea-d268-4abb-8d2a-fc9cafea18d7"
+                }
+            }
+        },
+        "VPC1" : {
+            "Type" : "AWS::EC2::VPC",
+            "Properties" : {
+               "CidrBlock" : "10.0.0.0/16",
+               "EnableDnsSupport" : "false",
+               "EnableDnsHostnames" : "false",
+               "InstanceTenancy" : "dedicated"
+            }
+         },
+         "mySubnet" : {
+            "Type" : "AWS::EC2::Subnet",
+            "Properties" : {
+               "VpcId" : { "Ref" : "VPC1" },
+               "CidrBlock" : "10.0.0.0/24",
+               "AvailabilityZone" : "eu-central-1a"
+            }
+         }
+    }
+}
