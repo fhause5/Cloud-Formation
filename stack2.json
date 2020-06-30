@@ -1,0 +1,203 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Mappings": {
+    "MainAMI": {
+      "eu-central-1": {
+        "HVM64": "ami-0cfbf4f6db41068ac"
+      }
+    }
+  },
+  "Metadata" : {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Parameters": [
+            "AvailabilityZone",
+            "KeyName",
+            "IPRangeAccess",
+            "EnvType"
+          ],
+          "Label": {
+            "default": "Settings of AWS."
+          }
+        }
+      ],
+      "ParameterLabels": {
+        "AvailabilityZone":{
+          "default": "Availability Zone"
+        },
+        "KeyName":{
+          "default": "SSH Key Name"
+        },
+        "IPRangeAccess": {
+          "default": "An IP address or range for access"
+        },
+        "EnvType": {
+          "Default" : "test"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "KeyName": {
+      "Description": "Name of an existing EC2 key pair to enable SSH access to instances",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription": "Must be the name of an existing EC2 KeyPair",
+      "MinLength": "1"
+    },
+    "AvailabilityZone": {
+      "Description": "Pick an AvailabilityZone for the Primary Subnet. Public subnet will be created in here",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "EnvType": {
+      "Default" : "test",
+      "Type" : "String",
+      "AllowedValues" : ["prod", "test"],
+      "ConstraintDescription" : "must specify prod or test."
+    }
+  },
+  "Resources": {
+    "VPCID": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "InstanceTenancy": "default",
+        "EnableDnsSupport": true,
+        "EnableDnsHostnames": true
+      }
+    },
+    "SubnetPublic": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/24",
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone"
+        },
+        "MapPublicIpOnLaunch": true,
+        "VpcId": {
+          "Ref": "VPCID"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "AWS::StackName"
+            }
+          }
+        ]
+      }
+    },
+    "EC2Main": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone"
+        },
+        "DisableApiTermination": false,
+        "EbsOptimized": false,
+        "ImageId": {
+          "Fn::FindInMap": [
+            "MainAMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            "HVM64"
+          ]
+        },
+        "InstanceInitiatedShutdownBehavior": "stop",
+        "InstanceType": "t2.nano",
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "Monitoring": false,
+        "SubnetId": {
+          "Ref": "SubnetPublic"
+        },
+        "Tenancy": "default",
+        "SecurityGroupIds": [
+          {
+            "Ref": "SGMain"
+          }
+        ],
+         "Tags": [
+          {
+            "Key" : "Name",
+            "Value" :  { "Fn::Join" : [" - ", [
+              { "Ref": "AWS::StackName" },
+              "EC2Main"
+            ]]}
+          }
+        ]
+      }
+    },
+    "EC2RT4Q1H3": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPCID"
+        }
+      }
+    },
+    "EC2RU2DK": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "EC2RT4Q1H3"
+        },
+        "GatewayId": {
+          "Ref": "EC2IG2PWWQ"
+        }
+      }
+    },
+    "EC2IG2PWWQ": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "SGMain": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Main Security Group",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22
+
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 443,
+            "ToPort": 443
+
+          }
+        ],
+        "VpcId": {
+          "Ref": "VPCID"
+        }
+      }
+    },
+    "EC2SRTA3XXRN": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "SubnetPublic"
+        },
+        "RouteTableId": {
+          "Ref": "EC2RT4Q1H3"
+        }
+      }
+    },
+    "EC2VPCG14RXU": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPCID"
+        },
+        "InternetGatewayId": {
+          "Ref": "EC2IG2PWWQ"
+        }
+      }
+    }
+  }
+}
