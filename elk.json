@@ -1,0 +1,181 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Mappings": {
+      "MainAMI": {
+        "eu-west-1": {
+            "HVM64": "ami-089cc16f7f08c4457"
+          },
+        "eu-west-2": {
+            "HVM64": "ami-00f6a0c18edb19300"
+        },
+        "eu-west-3": {
+            "HVM64": "ami-0e11cbb34015ff725"
+        },
+        "eu-south-1": {
+            "HVM64": "ami-08bb6fa4a2d8676d4"
+        },
+        "eu-north-1": {
+            "HVM64": "ami-0e5f7b102d37f4801"
+        },
+        "eu-central-1": {
+            "HVM64": "ami-0d359437d1756caa8"
+        }
+      }
+    },
+    "Metadata" : {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+            "Parameters": [
+              "VPCID",
+              "InstanceType",
+              "VolumeSize",
+              "KeyName",
+              "AvailabilityZone"
+            ],
+            "Label": {
+              "default": "Settings of AWS."
+            }
+          }
+        ],
+        "ParameterLabels": {
+          "VPCid":{
+             "default": "Availability Zone"
+          },
+          "InstanceType":{
+            "default": "t3.medium"
+          },
+          "VolumeSize":{
+            "default": "50"
+          },
+          "KeyName":{
+            "default": "SSH Key Name"
+          },
+          "AvailabilityZone":{
+            "default": "Availability Zone"
+          }
+        }
+      }
+    },
+    "Parameters": {
+       "VPCID": {
+        "Description": "Name of an existing VPC id",
+        "Type": "AWS::EC2::VPC::Id"
+       },
+      "InstanceType": {
+        "Type" : "String",
+        "Description": "Choose instance type",
+        "Default" : "t3.medium",
+        "AllowedValues" : ["t2.micro", "t3.medium", "t3.large"]
+      },
+      "VolumeSize": {
+        "Type" : "String",
+        "Description": "Choose volume size",
+        "Default" : "50",
+        "AllowedValues" : ["50", "100", "150"]
+      },      
+      "KeyName": {
+        "Description": "Name of an existing EC2 key pair to enable SSH access to instances",
+        "Type": "AWS::EC2::KeyPair::KeyName",
+        "ConstraintDescription": "Must be the name of an existing EC2 KeyPair",
+        "MinLength": "1"
+      },
+      "AvailabilityZone": {
+        "Description": "Pick an AvailabilityZone for the Primary Subnet. Public subnet will be created in here",
+        "Type": "AWS::EC2::AvailabilityZone::Name"
+      },
+      "Subnetid": {
+        "Description": "Subnet must be similar to AvailabilityZone",
+        "Type": "AWS::EC2::Subnet::Id"
+       }
+    },
+    "Resources": {
+      "EC2Main": {
+        "Type": "AWS::EC2::Instance",
+        "Properties": {
+          "AvailabilityZone": {
+            "Ref": "AvailabilityZone"
+          },
+          "DisableApiTermination": false,
+          "EbsOptimized": false,
+          "ImageId": {
+            "Fn::FindInMap": [
+              "MainAMI",
+              {
+                "Ref": "AWS::Region"
+              },
+              "HVM64"
+            ]
+          },
+          "InstanceInitiatedShutdownBehavior": "stop",
+          "InstanceType": { "Ref": "InstanceType" },
+          "KeyName": { "Ref": "KeyName" },
+          "Monitoring": false,
+          "SubnetId": {
+            "Ref": "Subnetid"
+          },
+          "Tenancy": "default",
+          "SecurityGroupIds": [
+            {
+              "Ref": "SGMain"
+            }
+          ],
+           "Tags": [
+            {
+              "Key" : "Name",
+              "Value" :  { "Fn::Join" : [" - ", [
+                { "Ref": "AWS::StackName" },
+                "EC2Main"
+              ]]}
+            }
+          ],
+          "UserData": {
+            "Fn::Base64": {"Fn::Join": ["",[
+                  "#!/bin/bash","\n",
+                  "apt update","\n",
+                  "apt install -y nginx openjdk-8-jdk","\n",
+                  "wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -","\n",
+                  "echo 'deb https://artifacts.elastic.co/packages/6.x/apt stable main' | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list","\n",
+                  "apt update","\n",
+                  "apt-get install -y elasticsearch kibana","\n",
+                  "systemctl restart elasticsearch","\n",
+                  "systemctl restart kibana","\n"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "SGMain": {
+        "Type": "AWS::EC2::SecurityGroup",
+        "Properties": {
+          "GroupDescription": "Main Security Group",
+          "SecurityGroupIngress": [
+            {
+              "IpProtocol": "tcp",
+              "FromPort": 22,
+              "ToPort": 22,
+              "CidrIp" : "0.0.0.0/0"
+  
+            },
+            {
+              "IpProtocol": "tcp",
+              "FromPort": 443,
+              "ToPort": 443,
+              "CidrIp" : "0.0.0.0/0"
+  
+            }
+            {
+                "IpProtocol": "tcp",
+                "FromPort": 80,
+                "ToPort": 80,
+                "CidrIp" : "0.0.0.0/0"
+    
+              }
+          ],
+          "VpcId": { "Ref": "VPCID" }
+        }
+      }
+    }
+}
+  
