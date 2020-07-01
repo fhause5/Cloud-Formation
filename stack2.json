@@ -38,6 +38,10 @@
       }
     }
   },
+  "Conditions" : {
+    "CreateProdResources" : {"Fn::Equals" : [{"Ref" : "EnvType"}, "prod"]},
+    "CreateDevResources" : {"Fn::Equals" : [{"Ref" : "EnvType"}, "dev"]}
+  },
   "Parameters": {
     "KeyName": {
       "Description": "Name of an existing EC2 key pair to enable SSH access to instances",
@@ -50,10 +54,10 @@
       "Type": "AWS::EC2::AvailabilityZone::Name"
     },
     "EnvType": {
-      "Default" : "test",
+      "Default" : "dev",
       "Type" : "String",
-      "AllowedValues" : ["prod", "test"],
-      "ConstraintDescription" : "must specify prod or test."
+      "AllowedValues" : ["prod", "dev"],
+      "ConstraintDescription" : "must specify prod or dev."
     }
   },
   "Resources": {
@@ -127,10 +131,29 @@
               "EC2Main"
             ]]}
           }
-        ]
+        ],
+        "UserData": {
+          "Fn::Base64": {"Fn::Join": ["",[
+                "#!/bin/bash","\n",
+                "yum update","\n",
+                "yum install -y nginx","\n",               
+                "echo -e 'Example_env=",{"Fn::Join": ["-", ["dash",{"Ref": "EnvType"}]]},"\\n",
+                "'"," >> /tmp/.env","\n"
+              ]
+            ]
+          }
+        }
       }
     },
-    "EC2RT4Q1H3": {
+    "ProdVolume" : {
+      "Type" : "AWS::EC2::Volume",
+      "Condition" : "CreateProdResources",
+      "Properties" : {
+        "Size" : "40",
+        "AvailabilityZone" : { "Ref" : "AvailabilityZone" }
+      }
+    },
+    "RouteTable": {
       "Type": "AWS::EC2::RouteTable",
       "Properties": {
         "VpcId": {
@@ -138,19 +161,19 @@
         }
       }
     },
-    "EC2RU2DK": {
+    "Route": {
       "Type": "AWS::EC2::Route",
       "Properties": {
         "DestinationCidrBlock": "0.0.0.0/0",
         "RouteTableId": {
-          "Ref": "EC2RT4Q1H3"
+          "Ref": "RouteTable"
         },
         "GatewayId": {
-          "Ref": "EC2IG2PWWQ"
+          "Ref": "InternetGateway"
         }
       }
     },
-    "EC2IG2PWWQ": {
+    "InternetGateway": {
       "Type": "AWS::EC2::InternetGateway",
       "Properties": {}
     },
@@ -177,25 +200,25 @@
         }
       }
     },
-    "EC2SRTA3XXRN": {
+    "SubnetRouteTableAssociation": {
       "Type": "AWS::EC2::SubnetRouteTableAssociation",
       "Properties": {
         "SubnetId": {
           "Ref": "SubnetPublic"
         },
         "RouteTableId": {
-          "Ref": "EC2RT4Q1H3"
+          "Ref": "RouteTable"
         }
       }
     },
-    "EC2VPCG14RXU": {
+    "VPCGatewayAttachment": {
       "Type": "AWS::EC2::VPCGatewayAttachment",
       "Properties": {
         "VpcId": {
           "Ref": "VPCID"
         },
         "InternetGatewayId": {
-          "Ref": "EC2IG2PWWQ"
+          "Ref": "InternetGateway"
         }
       }
     }
