@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Elastic Search and Kibana'
+Mappings:
+  MainAMI:
+    eu-west-1:
+      HVM64: ami-089cc16f7f08c4457
+    eu-west-2:
+      HVM64: ami-00f6a0c18edb19300
+    eu-west-3:
+      HVM64: ami-0e11cbb34015ff725
+    eu-south-1:
+      HVM64: ami-08bb6fa4a2d8676d4
+    eu-north-1:
+      HVM64: ami-0e5f7b102d37f4801
+    eu-central-1:
+      HVM64: ami-0d359437d1756caa8
+    us-east-1:
+      HVM64: ami-0ac80df6eff0e70b5
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Parameters:
+          - VPCID
+          - InstanceType
+          - VolumeSize
+          - KeyName
+          - VpcCIDR
+          - Subnetid
+          - KibanaPassword
+        Label:
+          default: Settings of AWS.
+    ParameterLabels:
+      VPCID:
+        default: ''
+      InstanceType:
+        default: t3.medium
+      VolumeSize:
+        default: '80'
+      KeyName:
+        default: SSH Key Name
+      VpcCIDR:
+        default: 0.0.0.0/0
+      Subnetid:
+        default: ''
+      KibanaPassword:
+        default: ''
+Parameters:
+  VPCID:
+    Description: Name of an existing VPC id
+    Type: 'AWS::EC2::VPC::Id'
+  InstanceType:
+    Type: String
+    Description: Choose an instance type
+    Default: t3.medium
+    AllowedValues:
+      - t2.small
+      - t3.medium
+      - t3.large
+  VolumeSize:
+    Type: String
+    Description: Pick a volume size
+    Default: '80'
+  KibanaPassword:
+    Type: String
+    Description: Create a kibana password (The default user name is admin)
+    Default: ''
+  KeyName:
+    Description: Name of an existing EC2 key pair to enable SSH access to instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair
+    MinLength: '1'
+  VpcCIDR:
+    Type: String
+    Description: >-
+      The IP address range or single the IP address in CIDR format will use get
+      access to the public URL
+    Default: '0.0.0.0/0'
+  Subnetid:
+    Description: Select subnet
+    Type: 'AWS::EC2::Subnet::Id'
+Resources:
+  EC2Main:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      DisableApiTermination: false
+      EbsOptimized: false
+      ImageId: !FindInMap 
+        - MainAMI
+        - !Ref 'AWS::Region'
+        - HVM64
+      InstanceInitiatedShutdownBehavior: stop
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      Monitoring: false
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet:
+            - Ref: SGMain
+          SubnetId: !Ref Subnetid
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: !Ref VolumeSize
+            DeleteOnTermination: 'false'
+            Encrypted: 'true'
+      Tenancy: default
+      Tags:
+        - Key: Name
+          Value: !Ref 'AWS::StackName'
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            apt update
+            apt install -y nginx
+            apt install -y openjdk-8-jre apt-transport-https
+            wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+            echo 'deb https://artifacts.elastic.co/packages/6.x/apt stable main' | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list
+            apt update
+            apt-get install -y elasticsearch kibana
+            echo 'server.host: 0.0.0.0' >> /etc/kibana/kibana.yml
+            sed -i 's/#network.host: 192.168.0.1/network.host: 0.0.0.0/' /etc/elasticsearch/elasticsearch.yml
+            echo "admin:`openssl passwd -apr1 ${KibanaPassword}`" | tee -a /etc/nginx/htpasswd.kibana
+            rm -f /etc/nginx/sites-enabled/default
+            cat > /etc/nginx/sites-available/kibana.conf <<'EOF'
+            server {
+              listen 80;
+              server_name _;
+
+              auth_basic "Restricted Access";
+              auth_basic_user_file /etc/nginx/htpasswd.kibana;
+
+              location / {
+              proxy_pass http://localhost:5601;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection 'upgrade';
+              proxy_set_header Host $host;
+              proxy_cache_bypass $http_upgrade;   
+              }
+            }
+            EOF
+            ln -s /etc/nginx/sites-available/kibana.conf /etc/nginx/sites-enabled/
+            systemctl restart nginx
+            systemctl restart kibana
+            systemctl restart elasticsearch
+            systemctl enable elasticsearch
+            systemctl enable kibana
+  SGMain:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Elastic Search and Kibana Security Group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5601
+          ToPort: 5601
+          CidrIp: !Ref VpcCIDR
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9200
+          CidrIp: !Ref VpcCIDR
+      VpcId: !Ref VPCID

@@ -19,6 +19,9 @@
         },
         "eu-central-1": {
             "HVM64": "ami-0d359437d1756caa8"
+        },
+        "us-east-1": {
+            "HVM64": "ami-0ac80df6eff0e70b5"
         }
       }
     },
@@ -64,15 +67,14 @@
        },
       "InstanceType": {
         "Type" : "String",
-        "Description": "Choose instance type",
+        "Description": "Pick an instance type",
         "Default" : "t3.medium",
         "AllowedValues" : ["t2.micro", "t3.medium", "t3.large"]
       },
       "VolumeSize": {
         "Type" : "String",
-        "Description": "Choose volume size",
-        "Default" : "50",
-        "AllowedValues" : ["50", "100", "150"]
+        "Description": "Pick a volume size",
+        "Default" : "50"
       },      
       "KeyName": {
         "Description": "Name of an existing EC2 key pair to enable SSH access to instances",
@@ -111,6 +113,17 @@
           "InstanceType": { "Ref": "InstanceType" },
           "KeyName": { "Ref": "KeyName" },
           "Monitoring": false,
+          "BlockDeviceMappings": [
+            {
+              "DeviceName": "/dev/sda1",
+              "Ebs": {
+                "VolumeType": "gp2",
+                "VolumeSize": { "Ref": "VolumeSize" },
+                "DeleteOnTermination":"false",
+                "Encrypted": "true"
+              }
+            }
+          ],
           "SubnetId": {
             "Ref": "Subnetid"
           },
@@ -125,7 +138,7 @@
               "Key" : "Name",
               "Value" :  { "Fn::Join" : [" - ", [
                 { "Ref": "AWS::StackName" },
-                "EC2Main"
+                "ELK"
               ]]}
             }
           ],
@@ -133,13 +146,18 @@
             "Fn::Base64": {"Fn::Join": ["",[
                   "#!/bin/bash","\n",
                   "apt update","\n",
-                  "apt install -y nginx openjdk-8-jdk","\n",
+                  "apt install -y git wget","\n",
+                  "apt install -y openjdk-8-jre apt-transport-https","\n",
                   "wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -","\n",
                   "echo 'deb https://artifacts.elastic.co/packages/6.x/apt stable main' | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list","\n",
                   "apt update","\n",
                   "apt-get install -y elasticsearch kibana","\n",
+                  "echo 'server.host: 0.0.0.0' >> /etc/kibana/kibana.yml","\n",
+                  "sed -i 's/#network.host: 192.168.0.1/network.host: 0.0.0.0/' /etc/elasticsearch/elasticsearch.yml","\n",
+                  "systemctl restart kibana","\n",
                   "systemctl restart elasticsearch","\n",
-                  "systemctl restart kibana","\n"
+                  "systemctl enable elasticsearch","\n",
+                  "systemctl enable kibana","\n"
                 ]
               ]
             }
@@ -160,18 +178,18 @@
             },
             {
               "IpProtocol": "tcp",
-              "FromPort": 443,
-              "ToPort": 443,
+              "FromPort": 5601,
+              "ToPort": 5601,
+              "CidrIp" : "0.0.0.0/0"
+  
+            },
+            {
+              "IpProtocol": "tcp",
+              "FromPort": 9200,
+              "ToPort": 9200,
               "CidrIp" : "0.0.0.0/0"
   
             }
-            {
-                "IpProtocol": "tcp",
-                "FromPort": 80,
-                "ToPort": 80,
-                "CidrIp" : "0.0.0.0/0"
-    
-              }
           ],
           "VpcId": { "Ref": "VPCID" }
         }
