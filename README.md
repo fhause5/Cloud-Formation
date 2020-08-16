@@ -143,5 +143,15 @@ Fn::Or
 
 ```
 
+###  AWS Config for commit stack
 
 
+### Detect drift (check changes out stack)
+Stack > Detect drift > view if you need apply > Detect stack drift
+
+* Detect drift from cli
+* Get id
+aws cloudformation detect-stack-drift --stack-name test
+aws cloudformation describe-stack-drift-detection-status --stack-drift-detection-id <ID> 
+
+###  VPC endpoint allow to access from instance to s3, etc without NAT and etc

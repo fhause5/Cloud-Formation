@@ -1,0 +1,128 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Mappings": {
+      "MainAMI": {
+        "eu-west-1": {
+            "HVM64": "ami-089cc16f7f08c4457"
+          },
+        "eu-west-2": {
+            "HVM64": "ami-00f6a0c18edb19300"
+        },
+        "eu-west-3": {
+            "HVM64": "ami-0e11cbb34015ff725"
+        },
+        "eu-south-1": {
+            "HVM64": "ami-08bb6fa4a2d8676d4"
+        },
+        "eu-north-1": {
+            "HVM64": "ami-0e5f7b102d37f4801"
+        },
+        "eu-central-1": {
+            "HVM64": "ami-0d359437d1756caa8"
+        },
+        "us-east-1": {
+            "HVM64": "ami-0ac80df6eff0e70b5"
+        }
+      }
+    },
+    "Metadata" : {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+            "Parameters": [
+              "AvailabilityZone",
+              "KeyName",
+              "IPRangeAccess"
+            ],
+            "Label": {
+              "default": "Settings of AWS."
+            }
+          }
+        ],
+        "ParameterLabels": {
+          "AvailabilityZone":{
+            "default": "Availability Zone"
+          },
+          "KeyName":{
+            "default": "SSH Key Name"
+          },
+          "IPRangeAccess": {
+            "default": "An IP address or range for access"
+          },
+          "StackName": {
+            "Default" : "Resource_stack"
+          }
+        }
+      }
+    },
+    "Parameters": {
+      "KeyName": {
+        "Description": "Name of an existing EC2 key pair to enable SSH access to instances",
+        "Type": "AWS::EC2::KeyPair::KeyName",
+        "ConstraintDescription": "Must be the name of an existing EC2 KeyPair",
+        "MinLength": "1"
+      },
+      "AvailabilityZone": {
+        "Description": "Pick an AvailabilityZone for the Primary Subnet. Public subnet will be created in here",
+        "Type": "AWS::EC2::AvailabilityZone::Name"
+      },
+      "StackName": {
+        "Default" : "Resource_stack",
+        "Type" : "String"
+      }
+    },
+    "Resources": {
+      "EC2Main": {
+        "Type": "AWS::EC2::Instance",
+        "Properties": {
+          "AvailabilityZone": {
+            "Ref": "AvailabilityZone"
+          },
+          "DisableApiTermination": false,
+          "EbsOptimized": false,
+          "ImageId": {
+            "Fn::FindInMap": [
+              "MainAMI",
+              {
+                "Ref": "AWS::Region"
+              },
+              "HVM64"
+            ]
+          },
+          "InstanceInitiatedShutdownBehavior": "stop",
+          "InstanceType": "t2.nano",
+          "KeyName": {
+            "Ref": "KeyName"
+          },
+          "Monitoring": false,
+          "SubnetId":  { "Fn::ImportValue": { "Fn::Sub": "${StackName}-SubnetPublic" }
+          },
+          "Tenancy": "default",
+          "SecurityGroupIds": [
+            {
+                "Fn::ImportValue": { "Fn::Sub": "${StackName}-SGMain"}
+            }
+          ],
+           "Tags": [
+            {
+              "Key" : "Name",
+              "Value" :  { "Fn::Join" : [" - ", [
+                { "Ref": "AWS::StackName" },
+                "EC2Main"
+              ]]}
+            }
+          ],
+          "UserData": {
+            "Fn::Base64": {"Fn::Join": ["",[
+                  "#!/bin/bash","\n",
+                  "apt update -y","\n",
+                  "apt install -y nginx","\n"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    }
+}
+  

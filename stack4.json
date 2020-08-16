@@ -1,0 +1,53 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Mappings": {
+      "MainAMI": {
+        "eu-west-1": {
+            "HVM64": "ami-089cc16f7f08c4457"
+          },
+        "eu-west-2": {
+            "HVM64": "ami-00f6a0c18edb19300"
+        },
+        "eu-west-3": {
+            "HVM64": "ami-0e11cbb34015ff725"
+        },
+        "eu-south-1": {
+            "HVM64": "ami-08bb6fa4a2d8676d4"
+        },
+        "eu-north-1": {
+            "HVM64": "ami-0e5f7b102d37f4801"
+        },
+        "eu-central-1": {
+            "HVM64": "ami-0d359437d1756caa8"
+        },
+        "us-east-1": {
+            "HVM64": "ami-0ac80df6eff0e70b5"
+        }
+      }
+    },
+    "Resources": {
+        "SGMain": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "DeletionPolicy" : "Retain",
+            "Properties": {
+              "GroupDescription": "Main Security Group",
+              "SecurityGroupIngress": [
+                {
+                  "IpProtocol": "tcp",
+                  "FromPort": 22,
+                  "ToPort": 22
+      
+                },
+                {
+                  "IpProtocol": "tcp",
+                  "FromPort": 443,
+                  "ToPort": 443
+      
+                }
+              ],
+              "VpcId": "vpc-07bd2d03a56152a57"
+            }
+          }
+    }
+}
+  
